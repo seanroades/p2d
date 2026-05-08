@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Playing To Die",
-  description: "Playing To Die",
+  title: "p2d",
+  description: "p2d",
 };
 
 export default function RootLayout({
