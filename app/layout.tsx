@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "p2d",
-  description: "p2d",
+  title: "saw you yesterday, didn't get a chance to say",
+  description: "saw you yesterday, didn't get a chance to say",
 };
 
 export default function RootLayout({
