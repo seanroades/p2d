@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 const VW = 320;
 const VH = 192;
@@ -144,6 +144,9 @@ export default function Game({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [deathCount, setDeathCount] = useState(0);
   const [captionKey, setCaptionKey] = useState(0);
+  const [zoomTarget, setZoomTarget] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   const captionRef = useRef<string>("");
   const onDeathRef = useRef(onDeath);
   const volumeRef = useRef(volume);
@@ -274,8 +277,14 @@ export default function Game({
       if (kind !== "suicide") {
         setDeathCount((prev) => prev + 1);
         onDeathRef.current?.();
+        setCaptionKey((k) => k + 1);
+      } else {
+        setZoomTarget({
+          x: (player.x + PLAYER_W / 2) / VW,
+          y: (player.y + PLAYER_H / 2) / VH,
+        });
+        setTimeout(() => setCaptionKey((k) => k + 1), 720);
       }
-      setCaptionKey((k) => k + 1);
       try {
         deathAudio.volume = volumeRef.current * 0.05;
         deathAudio.currentTime = 0;
@@ -591,7 +600,23 @@ export default function Game({
       if (respawning) {
         ctx.globalAlpha = 1 - k;
       }
-      if (flip) {
+
+      const isFalling = player.dying && player.deathKind === "suicide";
+      if (isFalling) {
+        const fallProgress = Math.max(
+          0,
+          Math.min(1, 1 - player.deathTimer / DEATH_HOLD_MS),
+        );
+        const eased = fallProgress * fallProgress;
+        const angle = eased * (Math.PI / 2);
+        ctx.translate(x + PLAYER_W / 2, y + PLAYER_H);
+        ctx.rotate(flip ? -angle : angle);
+        ctx.translate(-PLAYER_W / 2, -PLAYER_H);
+        if (flip) {
+          ctx.translate(PLAYER_W, 0);
+          ctx.scale(-1, 1);
+        }
+      } else if (flip) {
         ctx.translate(x + PLAYER_W, y);
         ctx.scale(-1, 1);
       } else {
@@ -706,6 +731,11 @@ export default function Game({
           height: 100%;
           display: block;
           background: #0c0a14;
+          transform-origin: var(--zoom-x, 50%) var(--zoom-y, 50%);
+          transition: transform 0.85s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .game-canvas-zoom {
+          transform: scale(2.6);
         }
         .game-hud {
           position: absolute;
@@ -754,7 +784,15 @@ export default function Game({
       `}</style>
       <canvas
         ref={canvasRef}
-        className="game-canvas"
+        className={`game-canvas ${zoomTarget ? "game-canvas-zoom" : ""}`}
+        style={
+          zoomTarget
+            ? ({
+                "--zoom-x": `${zoomTarget.x * 100}%`,
+                "--zoom-y": `${zoomTarget.y * 100}%`,
+              } as CSSProperties)
+            : undefined
+        }
         width={VW}
         height={VH}
         aria-label="Playing To Die — pixel platformer"
