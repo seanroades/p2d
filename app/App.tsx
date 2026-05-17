@@ -574,27 +574,9 @@ function Cabinet({
         <div className="cab-controls">
           <VolumeSlider value={volume} onChange={onVolumeChange} />
           <div className="cab-controls-inner">
-            <div
-              className="cab-joystick"
-              style={{ "--tilt": tilt } as CSSProperties}
-              aria-hidden="true"
-            >
-              <div className="cab-joystick-base" />
-              <div className="cab-joystick-arm">
-                <div className="cab-joystick-shaft" />
-                <div className="cab-joystick-ball" />
-              </div>
-            </div>
+            <JoystickControl tilt={tilt} />
 
-            <div
-              className="cab-jump"
-              data-pressed={keys.jump ? "true" : "false"}
-              aria-hidden="true"
-            >
-              <div className="cab-jump-ring" />
-              <div className="cab-jump-cap" />
-              <span className="cab-jump-label">JUMP</span>
-            </div>
+            <JumpControl pressed={keys.jump} />
 
             <button
               type="button"
@@ -643,6 +625,116 @@ function Cabinet({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function dispatchKey(type: "keydown" | "keyup", key: string) {
+  try {
+    window.dispatchEvent(new KeyboardEvent(type, { key, bubbles: true }));
+  } catch {}
+}
+
+function JoystickControl({ tilt: keysTilt }: { tilt: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const dirRef = useRef<"left" | "right" | null>(null);
+  const [touchTilt, setTouchTilt] = useState(0);
+
+  const updateFromX = (clientX: number) => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const dx = clientX - cx;
+    const threshold = rect.width * 0.05;
+    let next: "left" | "right" | null = null;
+    if (dx < -threshold) next = "left";
+    else if (dx > threshold) next = "right";
+    if (next === dirRef.current) return;
+    if (dirRef.current === "left") dispatchKey("keyup", "ArrowLeft");
+    else if (dirRef.current === "right") dispatchKey("keyup", "ArrowRight");
+    if (next === "left") dispatchKey("keydown", "ArrowLeft");
+    else if (next === "right") dispatchKey("keydown", "ArrowRight");
+    dirRef.current = next;
+    setTouchTilt(next === "left" ? -1 : next === "right" ? 1 : 0);
+  };
+
+  const release = () => {
+    if (dirRef.current === "left") dispatchKey("keyup", "ArrowLeft");
+    else if (dirRef.current === "right") dispatchKey("keyup", "ArrowRight");
+    dirRef.current = null;
+    setTouchTilt(0);
+  };
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    updateFromX(e.clientX);
+  };
+  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.buttons !== 1 && e.pointerType !== "touch") return;
+    updateFromX(e.clientX);
+  };
+
+  const tilt = touchTilt !== 0 ? touchTilt : keysTilt;
+
+  return (
+    <div
+      ref={ref}
+      className="cab-joystick"
+      style={{ "--tilt": tilt } as CSSProperties}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={release}
+      onPointerCancel={release}
+      role="button"
+      aria-label="Move left or right"
+      tabIndex={0}
+    >
+      <div className="cab-joystick-base" />
+      <div className="cab-joystick-arm">
+        <div className="cab-joystick-shaft" />
+        <div className="cab-joystick-ball" />
+      </div>
+    </div>
+  );
+}
+
+function JumpControl({ pressed }: { pressed: boolean }) {
+  const [touchPressed, setTouchPressed] = useState(false);
+  const downRef = useRef(false);
+
+  const press = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    if (!downRef.current) {
+      downRef.current = true;
+      dispatchKey("keydown", " ");
+      setTouchPressed(true);
+    }
+  };
+  const release = () => {
+    if (downRef.current) {
+      downRef.current = false;
+      dispatchKey("keyup", " ");
+      setTouchPressed(false);
+    }
+  };
+
+  const isPressed = pressed || touchPressed;
+
+  return (
+    <div
+      className="cab-jump"
+      data-pressed={isPressed ? "true" : "false"}
+      onPointerDown={press}
+      onPointerUp={release}
+      onPointerCancel={release}
+      role="button"
+      aria-label="Jump"
+      tabIndex={0}
+    >
+      <div className="cab-jump-ring" />
+      <div className="cab-jump-cap" />
+      <span className="cab-jump-label">JUMP</span>
     </div>
   );
 }
@@ -1331,7 +1423,13 @@ const styles = `
   height: 26cqw;
   max-width: 160px;
   max-height: 160px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: grab;
 }
+.cab-joystick:active { cursor: grabbing; }
 .cab-joystick-base {
   position: absolute;
   bottom: 0;
@@ -1394,6 +1492,11 @@ const styles = `
   height: 26cqw;
   max-width: 160px;
   max-height: 160px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
 .cab-jump-ring {
   position: absolute;
@@ -1408,7 +1511,7 @@ const styles = `
 }
 .cab-jump-cap {
   position: absolute;
-  inset: 14%;
+  inset: 22%;
   border-radius: 50%;
   background: radial-gradient(circle at 32% 26%, #ff7474 0%, #c4101e 60%, #6a0414 100%);
   border: 2px solid #08020a;
